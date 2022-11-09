@@ -25,7 +25,7 @@ logger.add("file_1.log", rotation="500 MB")    # Automatically rotate too big fi
 
 # 日志内容支持可视化输出
 logger.info("If you're using Python {}, prefer {feature} of course!", 3.6, feature="f-strings")
-
+logger.remove()
 # 利用@logger.catch装饰器捕获函数异常信息
 @logger.catch
 def my_function(x,y,z):
