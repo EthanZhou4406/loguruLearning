@@ -192,3 +192,148 @@ while 1:
 演示结果动画：
 
 ![动画](loguru.assets/动画.gif)
+
+## 2.4 格式化输出内容
+
+loguru支持{}方式格式化输出日志内容。
+
+{}中没有变量名称时，根据顺序，将变量放入其中。有变量名称时，将响应的变量内容存放其中。
+
+```python
+logger.info("if you're using Python {}, prefer {feature} of course!", 3.6, feature="f-strings")
+```
+
+![image-20221110204007949](loguru.assets/image-20221110204007949.png)
+
+## 2.5 记录异常
+
+在函数前利用**logger.catch**修饰符，可以在函数中出现异常时，将异常记录在日志中。
+
+```pytho
+from loguru import logger
+@logger.catch
+def my_function(x,y,z):
+	return 1/(x+y+z)
+
+my_function(0,0,0)
+```
+
+![image-20221110204933351](loguru.assets/image-20221110204933351.png)
+
+## 2.6 日志中支持彩色显示
+
+format参数用来设置，记录日志的内容。并可以通过一些标签，来定义如何显示这些日志内容。
+
+```python
+import sys
+from loguru import logger
+#去除默认日志处理器
+logger.remove()
+#添加全新日志处理器
+logger.add(sys.stderr,format="<yellow>{time}</yellow>--<red>{message}</red>")
+#示例一个日志
+logger.info("这是一个日志信息")
+```
+
+![image-20221110205839669](loguru.assets/image-20221110205839669.png)
+
+## 2.7 异步，线程安全，进程安全
+
+logger中所有的日志处理器是线程安全的。但不是多进程安全的，但是通过enqueue参数来保证日志的完整性，同样也能保证日志的异步处理。
+
+协同函数作为日志记录池时，应使用complete()等待。
+
+## 2.8 记录完整的日志过程
+
+通过backtrace和diagnose两个参数可以设置在发生异常的时候，记录异常发生的完整过程。
+
+```python
+import sys
+from loguru import logger
+
+logger.remove()
+logger.add(sys.stderr,backtrace=True,diagnose=True)
+
+def func(a,b):
+    return a/b
+
+def nested(c):
+    try:
+        func(5,c)
+    except ZeroDivisionError:
+        # 输出一个异常日志What？！
+        logger.exception("What?!")
+
+nested(0)
+```
+
+![image-20221110211349562](loguru.assets/image-20221110211349562.png)
+
+## 2.9 额外属性的使用
+
+每一条日志都是一个record，每条record中有相应的属性对应日志的内容。
+
+![image-20221110220008481](loguru.assets/image-20221110220008481.png)
+
+当使用serialize参数时，每个日志信息在被发送到记录池时，会被转变成一个JSON字符串。
+
+```python
+logger.add(sys.stderr,serialize=True)
+logger.info("这是一个日志信息")
+```
+
+![image-20221110212614415](loguru.assets/image-20221110212614415.png)
+
+当使用bind()方式时，可以更改format参数中extra定义的属性。
+
+```python
+# 利用{extra[attr]}定义额外的属性，定义一个额外属性ip
+logger.add(sys.stderr,format="{extra[ip]} {message}")
+
+# 利用bind为额外属性ip绑定一个值
+logger_1 = logger.bind(ip="localhost")
+# 利用绑定了ip属性的日志记录器记录日志
+logger_1.info("这是一个日志信息")
+# 可以重新绑定ip属性值
+logger_1.bind(ip="127.0.0.1").info("这是另一个日志信息")
+```
+
+![image-20221110213429257](loguru.assets/image-20221110213429257.png)
+
+利用contextualize()方法为format参数中的extra定义的属性临时绑定值。
+
+```python
+logger.add(sys.stderr,format="{extra[ip]} {message}")
+ip = "192.10.10.1"
+with logger.contextualize(ip=ip):
+    logger.info("这是一个日志信息")
+```
+
+![image-20221110214128103](loguru.assets/image-20221110214128103.png)
+
+这里还可以利用bind进行一些更细粒度的控制。
+
+```python
+# filter参数为True时记录日志，此处利用lambda函数查看是否有special额外属性
+logger.add(sys.stderr, filter=lambda record: "special" in record["extra"])
+logger.debug("This message is not logged to the file")
+logger.bind(special=True).info("This message, though, is logged to the file!")
+```
+
+patch()函数运行动态的将信息传入日志中。
+
+```python
+# 定义一个具有utc额外属性的日志处理器
+logger.add(sys.stderr,format="{extra[utc]} {message}")
+# 将utc额外属性定义为当前时间
+logger = logger.patch(lambda record:record['extra'].update(utc=datetime.utcnow()))
+# 测试输出
+while 1:
+    time.sleep(10)
+    logger.info("这是一个日志信息")
+```
+
+![image-20221110220222684](loguru.assets/image-20221110220222684.png)
+
+## 2.10 opt函数的使用说明
+
