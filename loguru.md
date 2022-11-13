@@ -337,3 +337,187 @@ while 1:
 
 ## 2.10 opt函数的使用说明
 
+对logger对象进行调整，使得生成的日志内容有一些变化。
+
+```python	
+from loguru import logger
+import sys
+import math
+
+# exception参数的说明
+# True时记录异常的详细报错信息
+# False时忽略详细的报错信息
+
+def fun(x):
+    1/x
+
+try:
+    fun(0)
+except ZeroDivisionError:
+    logger.opt(exception=False).error("这是一个错误")
+
+print("----------------------------------")
+
+try:
+    fun(0)
+except ZeroDivisionError:
+    logger.opt(exception=True).error("这是一个错误")
+
+
+# record 参数的说明
+# record 为True时，表示在格式化输出中可以使用record的属性
+# record 为False时，表示在格式化输出中不可以使用record的属性
+logger.opt(record=True).info("Current line is:{record[line]}")
+logger.opt(record=False).info("Current line is:{record[line]}")
+
+# lazy 参数的说明
+# lazy 为True时，格式化信息中的变量，将作为一个函数进行调用，并将其结果放入格式化信息中
+# lazy 为False时，格式化信息中的变量，将根据其的赋值对象进行存储
+logger.opt(lazy=True).debug("if sink <=Debug:{x}",x=lambda:math.factorial(2**5))
+logger.opt(lazy=False).debug("if sink <=Debug:{x}",x=lambda:math.factorial(2**5))
+logger.opt(lazy=False).debug("if sink <=Debug:{x}",x=1)
+# logger.opt(lazy=True).debug("if sink <=Debug:{x}",x=1)
+
+# colors 参数说明
+# colors 为True时，日志信息中颜色标签会被渲染
+# colors 为False时，日志信息中颜色标签不会被渲染
+logger.opt(colors=True).info("<green>这是一个日志信息</green>")
+logger.opt(colors=False).info("<green>这是一个日志信息</green>")
+
+# raw 参数说明
+# raw 为True时，会忽略sink中添加的信息，而只输出message
+# raw 为False时，会添加sink中添加的信息，输出format中的信息
+logger.opt(raw=True).info("这是一个日志信息\n")
+logger.opt(raw=False).info("这是一个日志信息\n")
+
+# capture 参数说明
+# capture 为True时，可以使用extra中的键值对
+# capture 为False时，无法使用extra中的键值对
+logger.add(sys.stderr,format="{extra[value]}--{message}")
+logger_1=logger.bind(value=123)
+logger_1.opt(capture=True).info("Displayed but not captured:{valu}",valu="test")
+logger_1.opt(capture=False).info("Displayed but not captured:")
+
+
+# depth 参数说明
+# depth 为0时表示当前函数层，1表示外1层函数，n表示外n层函数，main层为module层，n最多为函数的层数
+def wrapped():
+    logger.opt(depth=0).info("get 0 context")
+    logger.opt(depth=1).info("get 1 context")
+    logger.opt(depth=2).info("get 2 context")
+    logger.opt(depth=3).info("get 3 context")
+    # logger.opt(depth=4).info("get 4 context")
+
+def func():
+    wrapped()
+    # logger.opt(depth=2).info("get func context")
+
+def funcc():
+    func()
+funcc()
+```
+
+![image-20221111223734433](loguru.assets/image-20221111223734433.png)
+
+## 2.11 自定义日志等级
+
+通过logger的level方法可以自定义一个等级的日志。
+
+并利用logger的log方法来使用自定义的日志等级。
+
+```python
+import sys
+from loguru import logger
+
+# 自定义一个日志等级
+# name表示该日志等级的名称
+# no表示该日志等级的安全等级，用来决定合适添加或更新
+# color表示该日志等级支持的颜色markdown标签
+# icon表示该日志的图标
+myLevel = logger.level(name="myInfo",no=25,color="<white><bold>",icon="\!/")
+# 使用自定义等级，输出一个日志
+logger.remove()
+logger.add(sys.stderr,format="{time} {level.name} {level.icon} {message}")
+logger.log("myInfo","这是一个利用自定义日志等级，输出的日志")
+```
+
+![image-20221113193408405](loguru.assets/image-20221113193408405.png)
+
+## 2.12 时间处理
+
+```python
+import sys
+from loguru import logger
+
+# 去除默认日志处理器
+logger.remove()
+
+# 创建一个自定义的日志处理器
+logger.add(sys.stderr,format="{time:YYYY-MM-DD HH:mm:ss}--{level.name}--{message}")
+
+# 输出一条日志记录
+logger.info("这是一条日志信息")
+```
+
+## 2.13 在脚本或库中使用
+
+利用logger的enable或disable方法来定义是否记录来自某个库的日志内容。
+
+```python
+# sub.py
+from loguru import logger
+
+def func(x):
+    logger.info("this is a log info from sub")
+    return True
+
+# main.py
+from loguru import logger
+# 利用disable来关闭__main__模块下的日志记录
+logger.disable("__main__")
+logger.info("No matter added sinks, this message is not displayed")
+# 利用enable来开启__main__模块下的日志记录
+logger.enable("__main__")
+logger.info("This message however is propagated to the sinks")
+
+
+
+from sub import func
+logger.disable("sub")
+func(0)
+logger.enable("sub")
+func(0)
+```
+
+![image-20221113193810405](loguru.assets/image-20221113193810405.png)
+
+## 2.14 日志错误通知
+
+将邮件通知作为logger的添加池，可以实现在发生一定等级的日志时，通过邮件传递给指定的用户。
+
+```PYTHON
+# 主要利用notifiers库
+import notifiers
+from notifiers.logging import NotificationHandler
+from loguru import logger
+
+# 邮箱的信息，寄件人的用户名和密码，收件人邮箱
+params={
+    "username": "ethanzh-u4406@126.com",
+    "password": "PMEK-LQHS-WQMBHI",
+    "to": "1574203568@qq.com",
+    "host":"smtp.126.com",
+    "ssl":True,
+    "port":25,
+}
+
+# 单独发送一封邮件
+notifier = notifiers.get_notifier("email",strict=True)
+notifier.notify(message="The application is running",**params)
+
+
+# 当发生错误日志时，发送警告邮件
+handler = NotificationHandler("email",defaults=params)
+logger.add(handler,level="ERROR")
+```
+
